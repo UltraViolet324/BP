@@ -25,7 +25,7 @@ results2.append(['Nazev souboru', 'Velikost', 'Pixely', 'Bit/Pixel'])
 
 
 exit_failure = 1
-DEBUG = 0
+DEBUG = 1
 
 
 def debug(value):
@@ -57,6 +57,11 @@ def main():
         dest="decompress",
         action="store_true")
     parser.add_argument(
+        "-t", "--tile",
+        dest="tile",
+        help="size of tile",
+        metavar="TIME")
+    parser.add_argument(
         "-i", "--input",
         dest="input",
         help="path file",
@@ -79,34 +84,49 @@ def main():
         print(error_message)
         sys.exit(exit_failure)
 
-    compress = Compress()
-    if args.compress:
-        compress.main_parse(args.input, 1)
-        compress.main_parse(args.input, 2)
-        compress.write_to_csv(results, 'results1')
-        compress.write_to_csv(results2, 'res2')
-    decompress = Decompress()
-    decompress.main_parse(args.input)
+
+    compress_openjpeg = Compress_openjpeg()
+    compress_openjpeg.tile = args.tile
+
+    if args.compress and args.openjpeg:
+        compress_openjpeg.main_parse(args.input, 1)
+        compress_openjpeg.main_parse(args.input, 2)
+        compress_openjpeg.write_to_csv(results, 'results1')
+        compress_openjpeg.write_to_csv(results2, 'res2')
+    elif args.decompress and args.openjpeg:
+        decompress_openjpeg = Decompress_openjpeg()
+        decompress_openjpeg.tile = args.tile
+        decompress_openjpeg.main_parse(args.input)
 
 
-class Compress:
+class Compress_openjpeg:
+
+    def __init__(self):
+        self.tile = ''
+        self.nr_res = ''
+        self.dirn = ''
+        self.path = ''
+        self.name = ''
+        self.folder = ''
 
     def read_image(self, input_file):
         global results
         #print(input_file + "\n")
         # Analyze image with openjpeg
         base = os.path.basename(input_file)
-        name = os.path.splitext(base)[0]
-        dirn = os.path.dirname(input_file)
-        #print(dirn)
+        self.name = os.path.splitext(base)[0]
+        self.folder = os.path.dirname(input_file).split('/')[1]
+        print(self.folder)
+        self.dirn = os.path.dirname(input_file)
+        #print(self.dirn)
         #print(input_file)
+        print(self.tile)
+        for self.nr_res in range(1, 11):
+            path = self.prepare_folder(self.nr_res)
+            print(path)
+            with open('time' + self.folder + '-' + self.tile + '-' + str(self.nr_res) + '.txt', 'a') as f:
+                run(["/usr/bin/time", "-f", "%U", "./opj_compress", "-i", input_file, "-o", path, "-r", "1", "-n", str(self.nr_res), "-t", self.tile], stderr=f)
 
-        for x in range(0, 10):
-            with open('out-file.txt', 'a') as f:
-                run(["/usr/bin/time", "-f", "%U", "./opj_compress", "-i", input_file, "-o", dirn + '/compressed/' + name + '_' + str(x) + '.jp2', "-r", "1", "-n", str(x), "-t", "4096, 4096"], stderr=f)
-        path, dirs, files = os.walk(dirn + "/compressed").next()
-        file_count = len(files)
-        print(file_count)
         # resolution = 16084992
         # size = os.path.getsize(input_file)*8
         # bytetopixel = int(size)/int(resolution)
@@ -122,6 +142,24 @@ class Compress:
         # bytetopixel_all += bytetopixel
 
         results.append([input_file, str(size) + 'B', str(resolution) + 'px', str(bytetopixel)])
+
+    def prepare_folder(self, nr_res):
+        """
+        Ensures that temporary directory and file exists and is writable.
+        Returns name of temporary file.
+        """
+
+        self.path = self.dirn + '/compressed/' + self.tile + '_' + str(self.nr_res) + '/' + self.name + '_' + self.tile + '-' + str(nr_res) + '.jp2'
+
+        try:
+            if not os.path.exists(self.dirn + '/compressed/' + self.tile + '_' + str(self.nr_res)):
+                os.makedirs(self.dirn + '/compressed/' + self.tile + '_' + str(self.nr_res))  # decimal equivalent of 0755 used on Windows
+        except IOError as e:
+            print(
+                "Failed to create directory '{0}'\nError (code {1}): '{2}'.".format(self.dirn, e.errno, e.strerror))
+            sys.exit()
+
+        return self.path
 
     def count_compress(self, input_file):
         global results2
@@ -159,7 +197,10 @@ class Compress:
             writer = csv.writer(output, lineterminator='\n')
             writer.writerows(text)
 
-class Decompress:
+class Decompress_openjpeg:
+
+    def __init__(self):
+        self.tile = ''
 
     def read_image(self, input_file):
         global results
@@ -171,10 +212,11 @@ class Decompress:
         #print(dirn)
         #print(input_file)
 
-        path, dirs, files = os.walk(dirn+"/compressed").next()
+        path, dirs, files = os.walk(dirn + "/compressed/").__next__()
         file_count = len(files)
-        print(file_count)
-        for x in range(0, file_count):
+        #print(file_count)
+        for x in range(1, file_count):
+            path = self.prepare_folder(x)
             with open('out-file.txt', 'a') as f:
                 run(["/usr/bin/time", "-f", "%U", "./opj_decompress", "-i", input_file, "-o", dirn + '/decompressed/' + name + '.jp2'], stderr=f)
 
@@ -193,6 +235,24 @@ class Decompress:
         # bytetopixel_all += bytetopixel
 
         results.append([input_file, str(size) + 'B', str(resolution) + 'px', str(bytetopixel)])
+
+    def prepare_folder(self, nr_res):
+        """
+        Ensures that temporary directory and file exists and is writable.
+        Returns name of temporary file.
+        """
+
+        self.path = self.dirn + '/decompressed/' + self.tile + '_' + str(self.nr_res) + '/' + self.name + '_' + self.tile + '-' + str(nr_res) + '.jp2'
+
+        try:
+            if not os.path.exists(self.dirn + '/decompressed/' + self.tile + '_' + str(self.nr_res)):
+                os.makedirs(self.dirn + '/decompressed/' + self.tile + '_' + str(self.nr_res))  # decimal equivalent of 0755 used on Windows
+        except IOError as e:
+            print(
+                "Failed to create directory '{0}'\nError (code {1}): '{2}'.".format(self.dirn, e.errno, e.strerror))
+            sys.exit()
+
+        return self.path
 
     def count_compress(self, input_file):
         global results2
