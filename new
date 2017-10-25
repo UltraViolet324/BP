@@ -1,0 +1,278 @@
+    importer.service = args.service_name
+    importer.leak_date = args.leak
+    importer.connect_to_database(URL(**config.database))
+
+    leak_date_check(importer.leak_date)
+
+    if importer.check_existance():
+        importer.run_pre_process(importer.get_tmp_table_name())
+        importer.concat_and_prepare(args.file)
+        importer.import_data_to_db(importer.preprocessed_file_path, importer.get_tmp_table_name())
+        importer.run_post_process(importer.get_tmp_table_name())
+        importer.rename_table()
+    else:
+        importer.run_pre_process(importer.get_table_name())
+        importer.import_data_to_db(args.file, importer.get_table_name())
+        importer.run_post_process(importer.get_table_name())
+
+    sys.exit()
+
+
+temp_dir = '/tmp/hippo'
+    prep_dir = '/opt/hippo/data_to_insert/'
+
+    def __init__(self):
+        self.eng = None
+        self.db_conn = None
+        self.leak_date = ''
+        self.service = ''
+        self.table_name = ''
+        self.temp_file = None
+        self.temp_file_path = ''
+        self.preprocessed_file_path = ''
+
+    def __del__(self):
+        if self.temp_file is not None:
+            self.temp_file.close()
+            os.remove(self.temp_file_path)
+            print_my('Temp file "{0}" removed.'.format(self.temp_file_path))
+        if self.preprocessed_file_path != '':
+            os.remove(self.preprocessed_file_path)
+            print_my('Temp file "{0}" removed.'.format(self.preprocessed_file_path))
+
+    def connect_to_database(self, connection_uri):
+        """
+        Connect to database using given connection URI
+        :param: str connection_uri: psycopg connection string
+        """
+
+        try:
+            self.eng = create_engine(connection_uri)
+            print_my("Connection successful.")
+        except exc.DatabaseError as e:
+            print_my("Failed to connect to the database!\n{}".format(e))
+            exit(exit_failure)
+
+        self.db_conn = self.eng.connect()
+
+    def get_temp_file(self):
+        """
+        Opens temporary file for writing and returns the file descriptor.
+        """
+        if self.temp_file is None:
+            try:
+                self.temp_file = open(self.prepare_temp_file(), 'w+')
+            except IOError as e:
+                print_my(
+                    "Failed 2 to open '{0}'\nError (code {1}): '{2}'.".format(self.temp_file_path, e.errno, e.strerror))
+                sys.exit()
+
+        return self.temp_file
+
+    def prepare_temp_file(self):
+        """
+        Ensures that temporary directory and file exists and is writable.
+        Returns name of temporary file.
+        """
+
+        self.temp_file_path = self.temp_dir + '/import_data-' + self.service + '-' + self.leak_date + '.txt'
+
+        try:
+            if not os.path.exists(self.temp_dir):
+                os.makedirs(self.temp_dir)  # decimal equivalent of 0755 used on Windows
+        except IOError as e:
+            print_my(
+                "Failed to create directory '{0}'\nError (code {1}): '{2}'.".format(self.temp_dir, e.errno, e.strerror))
+            sys.exit()
+
+        if os.path.exists(self.temp_file_path):
+            print_my("Temporary file '{0}' already exists!\n"
+                     "Is another import already running? "
+                     "If it is not running, delete the temp file manually and try again.".format(self.temp_file_path))
+            sys.exit(exit_failure)
+
+        return self.temp_file_path
+
+    def run_pre_process(self, table_name):
+        insert_service = "with s as (select ID_service, type_of_service from service where type_of_service = (%s)), " \
+                         "i as (insert " \
+                         "into service (" \
+                         "type_of_service) select (%s) where not exists (SELECT type_of_service FROM " \
+                         "service WHERE type_of_service = (%s)) returning ID_service) select ID_service " \
+                         "from i union all select ID_service from s"
+
+        insert_leak = "with s as (select ID_leak, ID_service from leak where ID_service = %s AND leak_date = to_date(%s, 'YYYY-MM')), " \
+                      "i as (insert " \
+                      "into leak (" \
+                      "leak_date, ID_service) select to_date(%s, 'YYYY-MM'), (%s) where not exists (SELECT leak_date, "\
+                      "ID_leak FROM " \
+                      "leak WHERE leak_date = to_date(%s, 'YYYY-MM') AND ID_service = (%s)) returning ID_leak) select "\
+                      "ID_leak " \
+                      "from i union all select ID_leak from s"
+
+        insert_batch = "INSERT INTO batch_upload(ID_leak) values (%s) returning ID_batch;"
+
+        service_result = self.db_conn.execute(insert_service, (self.service, self.service, self.service))
+        service_id = ""
+        for row in service_result:
+            service_id = (row[0])
+
+        leak_result = self.db_conn.execute(insert_leak,
+                                           (service_id, self.leak_date, self.leak_date, service_id, self.leak_date, service_id))
+        leak_id = ""
+        for row2 in leak_result:
+            leak_id = (row2[0])
+
+        batch_result = self.db_conn.execute(insert_batch, leak_id)
+        batch_id = ""
+        for row3 in batch_result:
+            batch_id = (row3[0])
+
+        print_my('Create and configure table for leak data')
+        self.db_conn.execute(
+            "CREATE TABLE " + table_name + " (LIKE leak_item INCLUDING DEFAULTS);")
+        self.db_conn.execute(
+            "ALTER TABLE " + table_name + " ADD CONSTRAINT " + table_name + "_pkey PRIMARY KEY (id_leak_item);")
+        self.db_conn.execute("ALTER TABLE " + table_name + " SET UNLOGGED;")
+        self.db_conn.execute("DROP INDEX IF EXISTS " + self.get_index_name_for_value(table_name))
+        self.db_conn.execute("ALTER TABLE " + table_name + " ALTER ID_batch SET DEFAULT (%s);", batch_id)
+
+    def import_data_to_db(self, src_data_path, table_name):
+        """
+        Inserts data into given DB connection via COPY command.
+        :param str src_data_path: name of source file to insert
+        :param table_name: table could be brand new, or tmp when adding more data
+        """
+
+        try:
+            open(src_data_path, "r")
+        except IOError as e:
+            print_my(
+                "Failed 4 to open '{0}'\nError (code {1}): '{2}'.".format(os.path.abspath(src_data_path), e.errno, e.strerror))
+            sys.exit()
+
+        print_my('Running TRUNCATE & COPY command to import data to database.')
+
+        self.db_conn.execute(
+            'TRUNCATE ' + table_name + '; COPY ' + table_name + ' (item_value) FROM \'' + os.path.abspath(src_data_path) + '\' WITH FREEZE NULL \'\'')
+        print_my('COPY finished.')
+
+    def check_existance(self):
+        """
+        Checks if same leak is already in database.
+        :return: Returns true if leak exists, false if not.
+        """
+        if self.db_conn.dialect.has_table(self.db_conn, self.get_table_name()):
+            print_my("Leak already exists - copying table data to temp file")
+            self.copy_table_to_temp()
+            return True
+        else:
+            return False
+
+    def copy_table_to_temp(self):
+        """
+        Exports data from table name given in argument into temp file.
+        :param str table_name: name of table which should be exported into file
+        """
+
+        self.get_temp_file()
+        fake_conn = self.eng.raw_connection()
+        face_cur = fake_conn.cursor()
+        face_cur.copy_expert("copy " + self.get_table_name() + " (item_value) to stdout", self.temp_file)
+        self.temp_file.close()
+
+    def concat_and_prepare(self, source_filename):
+        """
+        Concatenates temp and source file + call ./prepare_file script which prepares files for importing
+        :param source_filename:
+        :return name of temp file with valid preprocessed data
+        """
+        print_my("Merging and preparing file")
+
+        try:
+            self.temp_file = open(self.temp_file_path, "a+")
+            with open(os.path.abspath(source_filename)) as infile:
+                for line in infile:
+                    self.temp_file.write(line)
+        except IOError as e:
+            print_my(
+                "Failed 3 to open '{0}'\nError (code {1}): '{2}'.".format(os.path.abspath(source_filename), e.errno, e.strerror))
+            sys.exit()
+
+        self.temp_file.close()
+        infile.close()
+        os.system("./prepare_file.py -f " + self.temp_file_path)
+        base = os.path.basename(self.temp_file_path)
+        name = os.path.splitext(base)[0]
+        self.preprocessed_file_path = self.prep_dir + "/" + name + '_preprocessed.txt'
+
+    def get_table_name(self):
+        return 'leak_item_' + self.service + '_' + self.leak_date.replace("-", "_")
+
+    def get_tmp_table_name(self):
+        return 'leak_item_' + self.service + '_' + self.leak_date.replace("-", "_") + '_tmp'
+
+    def run_post_process(self, table_name):
+        """
+        Create indexes and constraints for the table
+        """
+        print_my("Indexing started.")
+        self.db_conn.execute(
+            "CREATE INDEX IF NOT EXISTS " + self.get_index_name_for_value(table_name) + " ON " + table_name + "(item_value);")
+        print_my("Turning on logging for the table.")
+        self.db_conn.execute("ALTER TABLE " + table_name + " SET LOGGED;")
+        self.db_conn.execute(
+            "ALTER TABLE " + table_name + " INHERIT leak_item;")
+
+    def get_index_name_for_value(self, table_name):
+        return 'index_' + table_name + '_value'
+
+    def rename_table(self):
+
+        self.db_conn.execute(
+            "ALTER TABLE " + self.get_table_name() + " NO INHERIT leak_item;")
+        print_my("Renaming old table.")
+        self.db_conn.execute("ALTER TABLE " + self.get_table_name() + " RENAME TO " + self.get_table_name() + "_old;")
+        self.db_conn.execute("ALTER TABLE " + self.get_table_name() + "_old" + " RENAME CONSTRAINT " + self.get_table_name() + "_pkey TO " + self.get_table_name() + "_pkey_old;")
+
+        print_my("Renaming new table.")
+        self.db_conn.execute("ALTER TABLE " + self.get_tmp_table_name() + " RENAME TO " + self.get_table_name() + ";")
+        self.db_conn.execute(
+            "ALTER TABLE " + self.get_table_name() + " RENAME CONSTRAINT " + self.get_tmp_table_name() + "_pkey TO " + self.get_table_name() + "_pkey;")
+
+        print_my("Removing old table.")
+        self.db_conn.execute("DROP TABLE IF EXISTS " + self.get_table_name() + "_old;")
+
+
+def print_my(to_print):
+    """
+    Print function, which adds date and time to every output. Use for debug.
+    :param str to_print: string which should be printed out
+    """
+    print(datetime.now(), to_print)
+
+
+def leak_date_check(leak):
+    """
+    Function to check if leak date is in right format and the date is not future.
+    :param str leak: date of leak
+    """
+    month_now = time.strftime("%m")
+    year_now = time.strftime("%Y")
+    leak_split = leak.split("-")
+    if len(leak_split) != 2:
+        print_my("Wrong format of leak date!\nFormat of leak date should be yyyy-mm, obtained {0}.\n".format(leak))
+        exit(exit_failure)
+    if int(leak_split[1]) > 12:
+        print_my("Not an existing month! Try again. ;)\n")
+        exit(exit_failure)
+    if int(leak_split[0]) < 2000:
+        print_my("Are you sure with the leak year?;)\n")
+        exit(exit_failure)
+    if leak_split[0] > year_now:
+        print_my("Och, future leak date! Are you a witch? :)")
+        exit(exit_failure)
+    if leak_split[0] == year_now and leak_split[1] > month_now:
+        print_my("Och, future leak date! Are you a witch? :)")
+        exit(exit_failure)
+
