@@ -1,8 +1,6 @@
 import math
 
 from PIL import Image
-import Levenshtein
-
 
 class BWImageCompare(object):
     """Compares two images (b/w)."""
@@ -88,20 +86,6 @@ class BWImageCompare(object):
 
         return self._nrmsd
 
-    @property
-    def levenshtein(self):
-        """Calculate the Levenshtein distance."""
-
-        if not hasattr(self, '_lv'):
-            stra = ''.join((chr(x) for x in self.imga_int))
-            strb = ''.join((chr(x) for x in self.imgb_int))
-
-            lv = Levenshtein.distance(stra, strb)
-
-            self._lv = float(lv) / self.x / self.y
-
-        return self._lv
-
 
 class ImageCompare(BWImageCompare):
     """Compares two images (colour)."""
@@ -118,28 +102,6 @@ class ImageCompare(BWImageCompare):
             for j in xrange(y):
                 pixel = img.getpixel((i, j))
                 yield pixel[0] | (pixel[1]<<8) | (pixel[2]<<16)
-
-    @property
-    def levenshtein(self):
-        """Calculate the Levenshtein distance."""
-
-        if not hasattr(self, '_lv'):
-            stra_r = ''.join((chr(x>>16) for x in self.imga_int))
-            strb_r = ''.join((chr(x>>16) for x in self.imgb_int))
-            lv_r = Levenshtein.distance(stra_r, strb_r)
-
-            stra_g = ''.join((chr((x>>8)&0xff) for x in self.imga_int))
-            strb_g = ''.join((chr((x>>8)&0xff) for x in self.imgb_int))
-            lv_g = Levenshtein.distance(stra_g, strb_g)
-
-            stra_b = ''.join((chr(x&0xff) for x in self.imga_int))
-            strb_b = ''.join((chr(x&0xff) for x in self.imgb_int))
-            lv_b = Levenshtein.distance(stra_b, strb_b)
-
-            self._lv = (lv_r + lv_g + lv_b) / 3. / self.x / self.y
-
-        return self._lv
-
 
 class FuzzyImageCompare(object):
     """Compares two images based on the previous comparison values."""
@@ -158,26 +120,17 @@ class FuzzyImageCompare(object):
         lb, i = self._lb, 2
 
         diffs = {
-            'levenshtein': [],
             'nrmsd': [],
             'psnr': [],
         }
 
         stop = {
-            'levenshtein': False,
             'nrmsd': False,
             'psnr': False,
         }
 
         while not all(stop.values()):
             cmp = ImageCompare(self._imga, self._imgb, i)
-
-            diff = diffs['levenshtein']
-            if len(diff) >= lb+2 and \
-                abs(diff[-1] - diff[-lb-1]) <= abs(diff[-lb-1] - diff[-lb-2]):
-                stop['levenshtein'] = True
-            else:
-                diff.append(cmp.levenshtein)
 
             diff = diffs['nrmsd']
             if len(diff) >= lb+2 and \
@@ -199,7 +152,6 @@ class FuzzyImageCompare(object):
             i *= 2
 
         self._compare = {
-            'levenshtein': 100 - diffs['levenshtein'][-1] * 100,
             'nrmsd': 100 - diffs['nrmsd'][-1] * 100,
             'psnr': diffs['psnr'][-1] == -1 and 100.0 or diffs['psnr'][-1],
         }
@@ -221,7 +173,7 @@ if __name__ == '__main__':
     import sys
 
     if len(sys.argv) < 3:
-        print ('usage: %s image-file-1.jpg image-file-2.jpg ...' % sys.argv[0])
+        print('usage: %s image-file-1.jpg image-file-2.jpg ...' % sys.argv[0])
         sys.exit()
 
     tot = len(sys.argv) - 1

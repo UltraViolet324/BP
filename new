@@ -276,3 +276,138 @@ def leak_date_check(leak):
         print_my("Och, future leak date! Are you a witch? :)")
         exit(exit_failure)
 
+
+
+        split0 = os.path.dirname(input_file).split('/')[0]
+        split2 = os.path.dirname(input_file).split('/')[2]
+        self.dire = split0 + '/' + self.folder + '/' + split2
+        print(self.dire)
+
+class Decompress_openjpeg:
+
+    def __init__(self):
+        self.tile = ''
+        self.dirn = ''
+        self.path = ''
+        self.name = ''
+        self.folder = ''
+        self.nr_res = ''
+
+    def read_image(self, input_file):
+        global results
+        #print(input_file + "\n")
+        # Analyze image with openjpeg
+        base = os.path.basename(input_file)
+        self.name = os.path.splitext(base)[0]
+        self.dirn = os.path.dirname(input_file)
+        self.folder = os.path.dirname(input_file).split('/')[1]
+        name2 = os.path.basename(input_file).split('_')[1]
+        print(self.dirn)
+        #print(input_file)
+
+        path, dirs, files = os.walk(self.dirn).__next__()
+        file_count = len(files)
+        print(file_count)
+        for x in range(0, file_count):
+            self.path = self.prepare_folder()
+            with open('time_' + self.folder + '_' + name2 + '_d.txt', 'a') as f:
+                run(["/usr/bin/time", "-f", "%U", "./opj_decompress", "-i", input_file, "-o", self.path], stderr=f)
+
+        # resolution = 16084992
+        # size = os.path.getsize(input_file)*8
+        # bytetopixel = int(size)/int(resolution)
+        # Dynamic pixels count
+        with Image.open(input_file) as img:
+            width, height = img.size
+        #print(img.size)
+        # statistics count TODO
+        resolution = width * height
+        size = os.path.getsize(input_file)
+        # size_all += size
+        bytetopixel = float(size) / float(resolution)
+        # bytetopixel_all += bytetopixel
+
+        results.append([input_file, str(size) + 'B', str(resolution) + 'px', str(bytetopixel)])
+
+    def prepare_folder(self):
+        """
+        Ensures that temporary directory and file exists and is writable.
+        Returns name of temporary file.
+        """
+
+        self.path = self.dirn + '/decompressed/' + self.name + '.tif'
+
+        try:
+            if not os.path.exists(self.dirn + '/decompressed'):
+                os.makedirs(self.dirn + '/decompressed')  # decimal equivalent of 0755 used on Windows
+        except IOError as e:
+            print(
+                "Failed to create directory '{0}'\nError (code {1}): '{2}'.".format(self.dirn, e.errno, e.strerror))
+            sys.exit()
+
+        return self.path
+
+    def count_compress(self, input_file):
+        global results2
+        with Image.open(input_file) as img:
+            width, height = img.size
+        #print(img.size)
+        resolution = width * height
+        size = os.path.getsize(input_file)
+        bytetopixel = float(size) / float(resolution)
+
+        results2.append([input_file, str(size) + 'B', str(resolution) + 'px', str(bytetopixel)])
+
+    def main_parse(self, input_file):
+        debug('main_parse | Input file: ' + input_file)
+        # IF folder  ---------------------------------------------------------------
+        if os.path.isdir(input_file):
+            for file_of_folder in os.listdir(input_file):
+                debug('main_parse | Is folder: <' + input_file + '> read file: <' + file_of_folder + '>')
+                self.main_parse(input_file + '/' + file_of_folder)
+
+        # IF valid image -------------------------------------------------------------------
+
+        elif input_file.endswith(".jp2"):
+            self.read_image(input_file)
+
+        # Some mess  -- ignore----------------------------------------------------------------
+        else:
+            debug("File:" + input_file + " - ignored ")
+
+    def write_to_csv(self, text, filename):
+        with open(filename+'.csv', "w") as output:
+            writer = csv.writer(output, lineterminator='\n')
+            writer.writerows(text)
+
+    def psnr_compare(self, ref_file, dist_file):
+        ref = scipy.misc.imread(ref_file, flatten=True).astype(numpy.float32)
+        dist = scipy.misc.imread(dist_file, flatten=True).astype(numpy.float32)
+
+        file_size = os.path.getsize(dist_file)
+        psnr_values = []
+        quality_values = []
+        size_values = []
+
+        plt.figure(figsize=(8, 8))
+
+        size_values.append(int(file_size / 1024))
+        quality_values.append(self.nr_res)
+        psnr_values.append(psnr.psnr(ref, dist))
+
+        plt.plot(quality_values, numpy.asarray(psnr_values) / 100.0, label='PSNR/100')
+        plt.legend(loc='lower right')
+        plt.xlabel('JPEG Quality')
+        plt.ylabel('Metric')
+        plt.savefig('jpg_demo_quality.png')
+
+        plt.figure(figsize=(8, 8))
+
+        plt.plot(size_values, numpy.asarray(psnr_values) / 100.0, label='PSNR/100')
+        plt.legend(loc='lower right')
+        plt.xlabel('JPEG File Size, KB')
+        plt.ylabel('Metric')
+        plt.savefig('jpg_demo_size.png')
+
+
+
