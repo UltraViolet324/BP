@@ -61,7 +61,7 @@ def main():
         "-t", "--tile",
         dest="tile",
         help="size of tile",
-        metavar="TIME")
+        metavar="TILE")
     parser.add_argument(
         "-i", "--input",
         dest="input",
@@ -254,7 +254,8 @@ class Compress_openjpeg:
         count = len(psnr_values)
         for x in range(1, count, 1):
             psnr_pr = psnr_values[x]
-            results3.append([input_file, str(size) + 'B', str(resolution) + 'px', str(bytetopixel), psnr_pr])
+
+        results3.append([input_file, str(size) + 'B', str(resolution) + 'px', str(bytetopixel), psnr_pr])
 
     def main_parse(self, input_file, number):
         debug('main_parse | Input file: ' + input_file)
