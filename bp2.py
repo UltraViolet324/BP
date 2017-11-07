@@ -37,10 +37,10 @@ size_values_b = []
 psnr_values_b = []
 
 results.append(['Nazev souboru', 'Velikost', 'Pixely', 'Bit/Pixel'])
-results2.append(['Nazev souboru', 'Velikost', 'Pixely', 'Bit/Pixel', 'PSNR', 'TIME'])
-results3.append(['Nazev souboru', 'Velikost', 'Pixely', 'Bit/Pixel', 'PSNR', 'TIME'])
-results2_b.append(['Nazev souboru', 'Velikost', 'Pixely', 'Bit/Pixel', 'PSNR', 'TIME'])
-results3_b.append(['Nazev souboru', 'Velikost', 'Pixely', 'Bit/Pixel', 'PSNR', 'TIME'])
+results2.append(['Nazev souboru', 'Velikost dlazdice', 'pocet urovni rozkladu', 'Bit/Pixel', 'PSNR', 'TIME', 'Bypass'])
+results3.append(['Nazev souboru', 'Velikost dlazdice', 'pocet urovni rozkladu', 'Bit/Pixel', 'PSNR', 'TIME', 'Bypass'])
+results2_b.append(['Nazev souboru', 'Velikost dlazdice', 'pocet urovni rozkladu', 'Bit/Pixel', 'PSNR', 'TIME', 'Bypass'])
+results3_b.append(['Nazev souboru', 'Velikost dlazdice', 'pocet urovni rozkladu', 'Bit/Pixel', 'PSNR', 'TIME', 'Bypass'])
 
 exit_failure = 1
 DEBUG = 1
@@ -128,7 +128,7 @@ class Compress:
 
                             size_values2.append(int(file_size / 1024))
                             psnr_values2.append(psnr.psnr(self.ref, dist))
-                            self.count_compress(path, time, psnr_values2[-1:], kakadu)
+                            self.count_compress(path, time, psnr_values2[-1:], kakadu, bypass)
 
                             base2 = os.path.basename(path)
                             self.name2 = os.path.splitext(base2)[0]
@@ -149,7 +149,7 @@ class Compress:
 
                             size_values.append(int(file_size / 1024))
                             psnr_values.append(psnr.psnr(self.ref, dist))
-                            self.count_decompress(path2, time, psnr_values[-1:], kakadu)
+                            self.count_decompress(path2, time, psnr_values[-1:], kakadu, bypass)
 
                         elif bypass == 1 and kakadu == 0:
                             path = self.prepare_folder(self.nr_res, bypass, kakadu)
@@ -170,7 +170,7 @@ class Compress:
 
                             size_values2_b.append(int(file_size / 1024))
                             psnr_values2_b.append(psnr.psnr(self.ref, dist))
-                            self.count_compress(path, time, psnr_values2_b[-1:], kakadu)
+                            self.count_compress(path, time, psnr_values2_b[-1:], kakadu, bypass)
 
                             base2 = os.path.basename(path)
                             self.name2 = os.path.splitext(base2)[0]
@@ -191,7 +191,7 @@ class Compress:
 
                             size_values_b.append(int(file_size / 1024))
                             psnr_values_b.append(psnr.psnr(self.ref, dist))
-                            self.count_decompress(path2, time, psnr_values_b[-1:], kakadu)
+                            self.count_decompress(path2, time, psnr_values_b[-1:], kakadu, bypass)
 
                         elif bypass == 0 and kakadu == 1:
                             path = self.prepare_folder(self.nr_res, bypass, kakadu)
@@ -213,7 +213,7 @@ class Compress:
 
                             size_values2.append(int(file_size / 1024))
                             psnr_values2.append(psnr.psnr(self.ref, dist))
-                            self.count_compress(path, time, psnr_values2[-1:], kakadu)
+                            self.count_compress(path, time, psnr_values2[-1:], kakadu, bypass)
 
                             base2 = os.path.basename(path)
                             self.name2 = os.path.splitext(base2)[0]
@@ -234,7 +234,7 @@ class Compress:
 
                             size_values.append(int(file_size / 1024))
                             psnr_values.append(psnr.psnr(self.ref, dist))
-                            self.count_decompress(path2, time, psnr_values[-1:], kakadu)
+                            self.count_decompress(path2, time, psnr_values[-1:], kakadu, bypass)
 
                         elif bypass == 1 and kakadu == 1:
                             path = self.prepare_folder(self.nr_res, bypass, kakadu)
@@ -256,7 +256,7 @@ class Compress:
 
                             size_values2.append(int(file_size / 1024))
                             psnr_values2.append(psnr.psnr(self.ref, dist))
-                            self.count_compress(path, time, psnr_values2[-1:], kakadu)
+                            self.count_compress(path, time, psnr_values2[-1:], kakadu, bypass)
 
                             base2 = os.path.basename(path)
                             self.name2 = os.path.splitext(base2)[0]
@@ -277,12 +277,12 @@ class Compress:
 
                             size_values.append(int(file_size / 1024))
                             psnr_values.append(psnr.psnr(self.ref, dist))
-                            self.count_decompress(path2, time, psnr_values[-1:], kakadu)
+                            self.count_decompress(path2, time, psnr_values[-1:], kakadu, bypass)
 
         with Image.open(input_file) as img:
             width, height = img.size
         resolution = width * height
-        size = os.path.getsize(input_file)
+        size = os.path.getsize(input_file) * 8
         bittopixel = float(size) / float(resolution)
 
         results.append([input_file, str(size) + 'B', str(resolution) + 'px', str(bittopixel)])
@@ -403,33 +403,33 @@ class Compress:
 
             return self.path
 
-    def count_compress(self, path, time, psnr, kakadu):
+    def count_compress(self, path, time, psnr, kakadu, bypass):
         global results2
         with Image.open(path) as img:
             width, height = img.size
         resolution = width * height
-        size = os.path.getsize(path)
+        size = os.path.getsize(path) * 8
         bittopixel = float(size) / float(resolution)
 
         if kakadu:
-            results2_b.append([path, str(size) + 'B', str(resolution) + 'px', str(bittopixel), psnr, time])
+            results2_b.append([path, self.tile, self.nr_res, str(bittopixel), psnr, time, bypass])
         else:
-            results2.append([path, str(size) + 'B', str(resolution) + 'px', str(bittopixel), psnr, time])
+            results2.append([path, self.tile, self.nr_res, str(bittopixel), psnr, time, bypass])
             print(results2[-1:])
 
-    def count_decompress(self, path, time, psnr, kakadu):
+    def count_decompress(self, path, time, psnr, kakadu, bypass):
         global results3
         with Image.open(path) as img:
             width, height = img.size
         print("count decompress = " + path)
         resolution = width * height
-        size = os.path.getsize(path)
+        size = os.path.getsize(path) * 8
         bittopixel = float(size) / float(resolution)
 
         if kakadu:
-            results3_b.append([path, str(size) + 'B', str(resolution) + 'px', str(bittopixel), psnr, time])
+            results3_b.append([path, self.tile, self.nr_res, str(bittopixel), psnr, time, bypass])
         else:
-            results3.append([path, str(size) + 'B', str(resolution) + 'px', str(bittopixel), psnr, time])
+            results3.append([path, self.tile, self.nr_res, str(bittopixel), psnr, time, bypass])
 
     def main_parse(self, input_file):
         debug('main_parse | Input file: ' + input_file)
