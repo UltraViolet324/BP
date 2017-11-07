@@ -288,35 +288,33 @@ class Compress_openjpeg:
 
             return self.path
 
-    def count_compress(self, input_file, time, psnr, bypass):
+    def count_compress(self, path, time, psnr, bypass):
         global results2
-        with Image.open(input_file) as img:
+        with Image.open(path) as img:
             width, height = img.size
-        #print(img.size)
         resolution = width * height
-        size = os.path.getsize(input_file)
+        size = os.path.getsize(path)
         bytetopixel = float(size) / float(resolution)
 
         if bypass:
-            results2_b.append([input_file, str(size) + 'B', str(resolution) + 'px', str(bytetopixel), psnr, time])
+            results2_b.append([path, str(size) + 'B', str(resolution) + 'px', str(bytetopixel), psnr, time])
         else:
-            results2.append([input_file, str(size) + 'B', str(resolution) + 'px', str(bytetopixel), psnr, time])
+            results2.append([path, str(size) + 'B', str(resolution) + 'px', str(bytetopixel), psnr, time])
             print(results2[-1:])
 
-    def count_decompress(self, input_file, time, psnr, bypass):
+    def count_decompress(self, path, time, psnr, bypass):
         global results3
-        with Image.open(input_file) as img:
+        with Image.open(path) as img:
             width, height = img.size
-        #print(img.size)
-        print(input_file)
+        print(path)
         resolution = width * height
-        size = os.path.getsize(input_file)
+        size = os.path.getsize(path)
         bytetopixel = float(size) / float(resolution)
 
         if bypass:
-            results3_b.append([input_file, str(size) + 'B', str(resolution) + 'px', str(bytetopixel), psnr, time])
+            results3_b.append([path, str(size) + 'B', str(resolution) + 'px', str(bytetopixel), psnr, time])
         else:
-            results3.append([input_file, str(size) + 'B', str(resolution) + 'px', str(bytetopixel), psnr, time])
+            results3.append([path, str(size) + 'B', str(resolution) + 'px', str(bytetopixel), psnr, time])
 
     def main_parse(self, input_file):
         debug('main_parse | Input file: ' + input_file)
