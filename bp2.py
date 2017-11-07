@@ -220,9 +220,9 @@ class Compress_openjpeg:
         # statistics count TODO
         resolution = width * height
         size = os.path.getsize(input_file)
-        bytetopixel = float(size) / float(resolution)
+        bittopixel = float(size) / float(resolution)
 
-        results.append([input_file, str(size) + 'B', str(resolution) + 'px', str(bytetopixel)])
+        results.append([input_file, str(size) + 'B', str(resolution) + 'px', str(bittopixel)])
 
     def prepare_folder(self, nr_res, bypass):
         """
@@ -294,12 +294,12 @@ class Compress_openjpeg:
             width, height = img.size
         resolution = width * height
         size = os.path.getsize(path)
-        bytetopixel = float(size) / float(resolution)
+        bittopixel = float(size) / float(resolution)
 
         if bypass:
-            results2_b.append([path, str(size) + 'B', str(resolution) + 'px', str(bytetopixel), psnr, time])
+            results2_b.append([path, str(size) + 'B', str(resolution) + 'px', str(bittopixel), psnr, time])
         else:
-            results2.append([path, str(size) + 'B', str(resolution) + 'px', str(bytetopixel), psnr, time])
+            results2.append([path, str(size) + 'B', str(resolution) + 'px', str(bittopixel), psnr, time])
             print(results2[-1:])
 
     def count_decompress(self, path, time, psnr, bypass):
@@ -309,12 +309,12 @@ class Compress_openjpeg:
         print(path)
         resolution = width * height
         size = os.path.getsize(path)
-        bytetopixel = float(size) / float(resolution)
+        bittopixel = float(size) / float(resolution)
 
         if bypass:
-            results3_b.append([path, str(size) + 'B', str(resolution) + 'px', str(bytetopixel), psnr, time])
+            results3_b.append([path, str(size) + 'B', str(resolution) + 'px', str(bittopixel), psnr, time])
         else:
-            results3.append([path, str(size) + 'B', str(resolution) + 'px', str(bytetopixel), psnr, time])
+            results3.append([path, str(size) + 'B', str(resolution) + 'px', str(bittopixel), psnr, time])
 
     def main_parse(self, input_file):
         debug('main_parse | Input file: ' + input_file)
