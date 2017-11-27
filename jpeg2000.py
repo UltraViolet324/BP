@@ -17,6 +17,7 @@ from argparse import ArgumentParser
 
 q_layers = 1
 nr_res = 1
+tile_collection = [512, 1024, 2048, 4096]
 tile = 512
 codeblock = 64
 p_order = "RPCL"
@@ -33,6 +34,11 @@ compress_psnr = 0.0000
 time_decomp = 0.0000
 decompree_bpp = 0.0000
 decompress_psnr = 0.0000
+count = 0
+dataset = []
+
+# results.append(['Velikost dlazdice', 'pocet urovni rozkladu', 'Bit/Pixel', 'PSNR-komprese', 'cas_komprese', 'Bypass'])
+# results2.append(['Velikost dlazdice', 'pocet urovni rozkladu', 'Bit/Pixel', 'PSNR-dekomprese', 'cas_dekomprese', 'Bypass'])
 
 
 exit_failure = 1
@@ -45,6 +51,11 @@ def debug(value):
 
 
 def main():
+    global nr_res
+    global tile_collection
+    global tile
+    global mode
+
     parser = ArgumentParser()
     parser.add_argument(
         "-i", "--input",
@@ -62,24 +73,20 @@ def main():
         print(error_message)
         sys.exit(exit_failure)
 
-    opj = OpenJpeg()
-    kkd = Kakadu()
     func = HelpingFunctions()
 
     if openjpeg:
-        func.parse_folder(args.input)
-    elif kakadu:
-        name, dirn, ref = func.parse_folder(args.input)
-        path = func.prepare_folder(dirn, name, True)
-        orig_bpp = func.count_bpp(args.input)
-        time_comp = kkd.compress(args.input, path, q_layers, nr_res, tile, codeblock, p_order, x_axis, y_axis, mode, reversible)
-        compress_bpp = func.count_bpp(path)
-        compress_psnr = func.postprocess_image(path, ref)
-        path2 = func.prepare_folder(dirn, nr_res, False)
-        time_decomp = kkd.decompress(path, path2)
-        decompree_bpp = func.count_bpp(path2)
-        decompress_psnr = func.postprocess_image(path2, ref)
-        func.delete_image(path, path2)
+        for mode in range(0, 2, 1):
+            for tile in tile_collection:
+                for nr_res in range(1, 11, 1):
+                    func.parse_folder(args.input)
+    if kakadu:
+        for mode in range(0, 2, 1):
+            if mode == 1:
+                mode = 'BYPASS'
+            for tile in tile_collection:
+                for nr_res in range(0, 2, 1):
+                    func.parse_folder(args.input)
 
 
 class OpenJpeg:
@@ -108,6 +115,18 @@ class OpenJpeg:
         time = file.readline().strip()
         if 'Warning' in time:
             time = file.readline().strip()
+        if 'handle' in time:
+            time = file.readline().strip()
+        if 'handle' in time:
+            time = file.readline().strip()
+        if 'handle' in time:
+            time = file.readline().strip()
+        if 'handle' in time:
+            time = file.readline().strip()
+        if 'handle' in time:
+            time = file.readline().strip()
+        if 'handle' in time:
+            time = file.readline().strip()
         file.close()
 
         return float(time)
@@ -119,6 +138,18 @@ class OpenJpeg:
         file = open('time_decompressed_OJ_B.txt', 'r')
         file.readline()
         time = file.readline().strip()
+        if 'handle' in time:
+            time = file.readline().strip()
+        if 'handle' in time:
+            time = file.readline().strip()
+        if 'handle' in time:
+            time = file.readline().strip()
+        if 'handle' in time:
+            time = file.readline().strip()
+        if 'handle' in time:
+            time = file.readline().strip()
+        if 'handle' in time:
+            time = file.readline().strip()
         file.close()
 
         return float(time)
@@ -147,13 +178,13 @@ class Kakadu:
                  "Creversible=" + reversible, "Stiles={" + str(tile) + ',' + str(tile) + "}",
                  "Clevels=" + str(nr_res), "Clayers=" + str(q_layers),
                  "Cblk={" + str(codeblock) + "," + str(codeblock) + "}", "Corder={" + p_order + "}",
-                 "Cmodes={" + mode + "}", "SOrigin={" + x_axis + "," + y_axis + "}"],
+                 "Cmodes={" + str(mode) + "}", "Sorigin={" + str(x_axis) + "," + str(y_axis) + "}"],
                 stderr=f)
         file = open('time_compressed_kkd_B.txt', 'r')
         time = file.readline().strip()
         file.close()
-
-        return time
+        print(time)
+        return float(time)
 
     @staticmethod
     def decompress(path, path2):
@@ -169,7 +200,7 @@ class Kakadu:
         time = file.readline().strip()
         file.close()
 
-        return time
+        return float(time)
 
 
 class HelpingFunctions:
@@ -231,9 +262,9 @@ class HelpingFunctions:
         :param filename:
         :return:
         """
-        with open(filename+'.csv', "w") as output:
+        with open(filename+'.csv', "a") as output:
             writer = csv.writer(output, lineterminator='\n')
-            writer.writerows(text)
+            writer.writerow(text)
 
     def parse_folder(self, input_file):
         """
@@ -248,6 +279,16 @@ class HelpingFunctions:
         global time_decomp
         global decompree_bpp
         global decompress_psnr
+        global count
+        global dataset
+        global nr_res
+        global tile
+        global mode
+        global q_layers
+        global codeblock
+        global p_order
+        global x_axis
+        global y_axis
 
         debug('main_parse | Input file: ' + input_file)
         # IF folder  ---------------------------------------------------------------
@@ -257,7 +298,24 @@ class HelpingFunctions:
                 self.parse_folder(input_file + '/' + file_of_folder)
             if os.path.dirname(input_file) != "":
                 # TODO: print data for one dataset deleno poctem fotek v datasetu
-                print(orig_bpp, time_comp, compress_bpp, compress_psnr, time_decomp, decompree_bpp, decompress_psnr)
+                if openjpeg:
+                    self.write_to_csv(
+                        [tile, nr_res, str(compress_bpp / count), str(compress_psnr / count), str(time_comp / count),
+                         str(mode)], "opj_compress_" + str(dataset[1]))
+                    self.write_to_csv([tile, nr_res, str(decompree_bpp / count), str(decompress_psnr / count),
+                                       str(time_decomp / count), str(mode)], "opj_decompress_" + str(dataset[1]))
+                    print(orig_bpp / count, time_comp, compress_bpp, compress_psnr / count, time_decomp, decompree_bpp,
+                          decompress_psnr)
+                    print(count)
+                if kakadu:
+                    self.write_to_csv(
+                        [tile, nr_res, str(compress_bpp / count), str(compress_psnr / count), str(time_comp / count),
+                         str(mode)], "kkd_compress_" + str(dataset[1]))
+                    self.write_to_csv([tile, nr_res, str(decompree_bpp / count), str(decompress_psnr / count),
+                                       str(time_decomp / count), str(mode)], "kkd_decompress_" + str(dataset[1]))
+                    print(orig_bpp / count, time_comp, compress_bpp, compress_psnr / count, time_decomp, decompree_bpp,
+                          decompress_psnr)
+                    print(count)
                 orig_bpp = 0.0000
                 time_comp = 0.0000
                 compress_bpp = 0.0000
@@ -265,12 +323,17 @@ class HelpingFunctions:
                 time_decomp = 0.0000
                 decompree_bpp = 0.0000
                 decompress_psnr = 0.0000
+                count = 0
+
+
 
         # IF valid image -------------------------------------------------------------------
 
         elif input_file.endswith(".tif"):
             opj = OpenJpeg()
             kkd = Kakadu()
+            count += 1
+            dataset = os.path.dirname(input_file).split("/")
 
 
             # print(name, dirn)
@@ -278,15 +341,28 @@ class HelpingFunctions:
             name, dirn, ref = self.parse_file(input_file)
             path = self.prepare_folder(dirn, name, True)
             orig_bpp += self.count_bpp(input_file)
-            time_comp += opj.compress(input_file, path, q_layers, nr_res, tile, codeblock, p_order, x_axis, y_axis, mode)
-            print("compressed")
-            compress_bpp += self.count_bpp(path)
-            compress_psnr += self.postprocess_image(path, ref)
-            path2 = self.prepare_folder(dirn, name, False)
-            time_decomp += opj.decompress(path, path2)
-            decompree_bpp += self.count_bpp(path2)
-            decompress_psnr += self.postprocess_image(path2, ref)
-            self.delete_image(path, path2)
+
+            if openjpeg:
+                time_comp += opj.compress(input_file, path, q_layers, nr_res, tile, codeblock, p_order, x_axis, y_axis, mode)
+                print("compressed")
+                compress_bpp += self.count_bpp(path)
+                compress_psnr += self.postprocess_image(path, ref)
+                path2 = self.prepare_folder(dirn, name, False)
+                time_decomp += opj.decompress(path, path2)
+                decompree_bpp += self.count_bpp(path2)
+                decompress_psnr += self.postprocess_image(path2, ref)
+                self.delete_image(path, path2, dirn)
+
+            if kakadu:
+                time_comp += kkd.compress(input_file, path, q_layers, nr_res, tile, codeblock, p_order, x_axis, y_axis, mode, reversible)
+                print("compressed_kkd")
+                compress_bpp += self.count_bpp(path)
+                compress_psnr += self.postprocess_image(path, ref)
+                path2 = self.prepare_folder(dirn, name, False)
+                time_decomp += kkd.decompress(path, path2)
+                decompree_bpp += self.count_bpp(path2)
+                decompress_psnr += self.postprocess_image(path2, ref)
+                self.delete_image(path, path2, dirn)
 
         # Some mess  -- ignore----------------------------------------------------------------
         else:
@@ -313,7 +389,7 @@ class HelpingFunctions:
         return float(psnr_count)
 
     @staticmethod
-    def delete_image(path, path2):
+    def delete_image(path, path2, dirn):
 
         try:
             os.remove(path)
@@ -323,10 +399,22 @@ class HelpingFunctions:
             sys.exit()
 
         try:
+            os.rmdir(dirn + '/compressed')
+        except IOError as e:
+            print("Failed  to remove '{0}'\nError (code {1}): '{2}'.".format(dirn + '/compressed', e.errno, e.strerror))
+            sys.exit()
+
+        try:
             os.remove(path2)
         except IOError as e:
             print(
                 "Failed  to remove '{0}'\nError (code {1}): '{2}'.".format(path2, e.errno, e.strerror))
+            sys.exit()
+
+        try:
+            os.rmdir(dirn + '/decompressed')
+        except IOError as e:
+            print("Failed  to remove '{0}'\nError (code {1}): '{2}'.".format(dirn + '/decompressed', e.errno, e.strerror))
             sys.exit()
 
 
