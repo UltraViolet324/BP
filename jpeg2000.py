@@ -85,7 +85,7 @@ def main():
             if mode == 1:
                 mode = 'BYPASS'
             for tile in tile_collection:
-                for nr_res in range(0, 2, 1):
+                for nr_res in range(0, 10, 1):
                     func.parse_folder(args.input)
 
 
