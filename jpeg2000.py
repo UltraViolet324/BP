@@ -14,10 +14,11 @@ import scipy.misc
 import numpy
 import psnr
 from argparse import ArgumentParser
+import collections
 
 q_layers = 1
 nr_res = 1
-tile_collection = [512, 1024, 2048, 4096]
+tile_collection = [512, 1024, 2048, 4096, 8192]
 tile = 512
 codeblock = 64
 p_order = "RPCL"
@@ -32,10 +33,15 @@ time_comp = 0.0000
 compress_bpp = 0.0000
 compress_psnr = 0.0000
 time_decomp = 0.0000
-decompree_bpp = 0.0000
+decompress_bpp = 0.0000
 decompress_psnr = 0.0000
 count = 0
 dataset = []
+num_threads = 4
+layers = 0
+time_decomp_layer_list = []
+decompress_psnr_list = []
+decompress_bpp_list = []
 
 # results.append(['Velikost dlazdice', 'pocet urovni rozkladu', 'Bit/Pixel', 'PSNR-komprese', 'cas_komprese', 'Bypass'])
 # results2.append(['Velikost dlazdice', 'pocet urovni rozkladu', 'Bit/Pixel', 'PSNR-dekomprese', 'cas_dekomprese', 'Bypass'])
@@ -55,6 +61,7 @@ def main():
     global tile_collection
     global tile
     global mode
+    global layers
 
     parser = ArgumentParser()
     parser.add_argument(
@@ -76,11 +83,15 @@ def main():
     func = HelpingFunctions()
 
     if openjpeg:
+        if q_layers > 1:
+            layers = 1
         for mode in range(0, 2, 1):
             for tile in tile_collection:
                 for nr_res in range(1, 11, 1):
                     func.parse_folder(args.input)
     if kakadu:
+        if q_layers > 1:
+            layers = 1
         for mode in range(0, 2, 1):
             if mode == 1:
                 mode = 'BYPASS'
@@ -91,25 +102,25 @@ def main():
 
 class OpenJpeg:
     @staticmethod
-    def compress(input_file, path, q_layers, nr_res, tile, codeblock, p_order, x_axis, y_axis, mode):
+    def compress(input_file, path, quality_layers, number_of_resolution, tiles, codeblocks, order, x, y, modes):
         """
 
         :param input_file:
         :param path:
-        :param q_layers:
-        :param nr_res:
-        :param tile:
-        :param codeblock:
-        :param p_order:
-        :param x_axis:
-        :param y_axis:
-        :param mode:
+        :param quality_layers:
+        :param number_of_resolution:
+        :param tiles:
+        :param codeblocks:
+        :param order:
+        :param x:
+        :param y:
+        :param modes:
         :return:
         """
         with open('time_compressed_OJ.txt', 'w') as f:
-            run(["/usr/bin/time", "-f", "%U", "./opj_compress", "-i", input_file, "-o", path, "-r", str(q_layers),
-                 "-n", str(nr_res), "-t", str(tile) + ',' + str(tile), "-b", str(codeblock) + ',' + str(codeblock),
-                 "-p",  p_order, "-d", str(x_axis) + ',' + str(y_axis), "-M", str(mode)], stderr=f)
+            run(["/usr/bin/time", "-f", "%U", "./opj_compress", "-i", input_file, "-o", path, "-r", str(quality_layers),
+                 "-n", str(number_of_resolution), "-t", str(tiles) + ',' + str(tiles), "-b", str(codeblocks) + ',' + str(codeblock),
+                 "-p", order, "-d", str(x) + ',' + str(y), "-M", str(modes)], stderr=f)
         file = open('time_compressed_OJ.txt', 'r')
         file.readline()
         time = file.readline().strip()
@@ -132,75 +143,126 @@ class OpenJpeg:
         return float(time)
 
     @staticmethod
-    def decompress(path, path2):
-        with open('time_decompressed_OJ_B.txt', 'w') as f:
-            run(["/usr/bin/time", "-f", "%U", "./opj_decompress", "-i", path, "-o", path2], stderr=f)
-        file = open('time_decompressed_OJ_B.txt', 'r')
-        file.readline()
-        time = file.readline().strip()
-        if 'handle' in time:
+    def decompress(path, path2, layer, ref):
+        if not layer:
+            with open('time_decompressed_OJ_B.txt', 'w') as f:
+                run(["/usr/bin/time", "-f", "%U", "./opj_decompress", "-i", path, "-o", path2], stderr=f)
+            file = open('time_decompressed_OJ_B.txt', 'r')
+            file.readline()
             time = file.readline().strip()
-        if 'handle' in time:
-            time = file.readline().strip()
-        if 'handle' in time:
-            time = file.readline().strip()
-        if 'handle' in time:
-            time = file.readline().strip()
-        if 'handle' in time:
-            time = file.readline().strip()
-        if 'handle' in time:
-            time = file.readline().strip()
-        file.close()
+            if 'handle' in time:
+                time = file.readline().strip()
+            if 'handle' in time:
+                time = file.readline().strip()
+            if 'handle' in time:
+                time = file.readline().strip()
+            if 'handle' in time:
+                time = file.readline().strip()
+            if 'handle' in time:
+                time = file.readline().strip()
+            if 'handle' in time:
+                time = file.readline().strip()
+            file.close()
 
-        return float(time)
+            return float(time)
+        else:
+            time_layer = []
+            opj_decompress_psnr = []
+            opj_decompress_bpp = []
+            for layer in range(1, 13, 1):
+                with open('time_decompressed_OJ_B.txt', 'w') as f:
+                    run(["/usr/bin/time", "-f", "%U", "./opj_decompress", "-i", path, "-o", path2], stderr=f)
+                file = open('time_decompressed_OJ_B.txt', 'r')
+                file.readline()
+                time = file.readline().strip()
+                if 'handle' in time:
+                    time = file.readline().strip()
+                if 'handle' in time:
+                    time = file.readline().strip()
+                if 'handle' in time:
+                    time = file.readline().strip()
+                if 'handle' in time:
+                    time = file.readline().strip()
+                if 'handle' in time:
+                    time = file.readline().strip()
+                if 'handle' in time:
+                    time = file.readline().strip()
+                file.close()
+
+                time_layer.append((float(time), layer))
+                opj_decompress_bpp.append((HelpingFunctions().count_bpp(path2), layer))
+                opj_decompress_psnr.append((HelpingFunctions().postprocess_image(path2, ref), layer))
+            return time_layer, opj_decompress_bpp, opj_decompress_psnr
 
 
 class Kakadu:
     @staticmethod
-    def compress(input_file, path, q_layers, nr_res, tile, codeblock, p_order, x_axis, y_axis, mode, reversible):
+    def compress(input_file, path, quality_layers, number_of_resolution, tiles, codeblocks, order, x, y, modes, revers,
+                 num_thread):
         """
 
         :param input_file:
         :param path:
-        :param q_layers:
-        :param nr_res:
-        :param tile:
-        :param codeblock:
-        :param p_order:
-        :param x_axis:
-        :param y_axis:
-        :param mode:
-        :param reversible:
+        :param quality_layers:
+        :param number_of_resolution:
+        :param tiles:
+        :param codeblocks:
+        :param order:
+        :param x:
+        :param y:
+        :param modes:
+        :param revers:
+        :param num_thread:
         :return:
         """
         with open('time_compressed_kkd_B.txt', 'w') as f:
             run(["/usr/bin/time", "-f", "%U", "./kdu_compress", "-i", input_file, "-o", path,
-                 "Creversible=" + reversible, "Stiles={" + str(tile) + ',' + str(tile) + "}",
-                 "Clevels=" + str(nr_res), "Clayers=" + str(q_layers),
-                 "Cblk={" + str(codeblock) + "," + str(codeblock) + "}", "Corder={" + p_order + "}",
-                 "Cmodes={" + str(mode) + "}", "Sorigin={" + str(x_axis) + "," + str(y_axis) + "}"],
+                 "Creversible=" + revers, "Stiles={" + str(tiles) + ',' + str(tiles) + "}",
+                 "Clevels=" + str(number_of_resolution), "Clayers=" + str(quality_layers),
+                 "Cblk={" + str(codeblocks) + "," + str(codeblocks) + "}", "Corder={" + order + "}",
+                 "Cmodes={" + str(modes) + "}", "Sorigin={" + str(x) + "," + str(y) + "}", "-num_threads",
+                 str(num_thread)],
                 stderr=f)
         file = open('time_compressed_kkd_B.txt', 'r')
         time = file.readline().strip()
         file.close()
-        print(time)
         return float(time)
 
     @staticmethod
-    def decompress(path, path2):
+    def decompress(path, path2, layer, ref):
         """
 
         :param path:
         :param path2:
+        :param layer:
+        :param ref:
         :return:
         """
-        with open('time_decompressed_kkd.txt', 'w') as f:
-            run(["/usr/bin/time", "-f", "%U", "./kdu_expand", "-i", path, "-o", path2], stderr=f)
-        file = open('time_decompressed_kkd.txt', 'r')
-        time = file.readline().strip()
-        file.close()
 
-        return float(time)
+        if not layer:
+            with open('time_decompressed_kkd.txt', 'w') as f:
+                run(["/usr/bin/time", "-f", "%U", "./kdu_expand", "-i", path, "-o", path2], stderr=f)
+            file = open('time_decompressed_kkd.txt', 'r')
+            time = file.readline().strip()
+            file.close()
+
+            return float(time)
+        else:
+            time_layer = []
+            kkd_decompress_psnr = []
+            kkd_decompress_bpp = []
+            for layer in range(1, 13, 1):
+                with open('time_decompressed_kkd.txt', 'w') as f:
+                    run(["/usr/bin/time", "-f", "%U", "./kdu_expand", "-i", path, "-o", path2, "-layers", layer],
+                        stderr=f)
+                file = open('time_decompressed_kkd.txt', 'r')
+                time = file.readline().strip()
+                file.close()
+
+                time_layer.append((float(time), layer))
+                kkd_decompress_bpp.append((HelpingFunctions().count_bpp(path2), layer))
+                kkd_decompress_psnr.append((HelpingFunctions().postprocess_image(path2, ref), layer))
+            return time_layer, kkd_decompress_bpp, kkd_decompress_psnr
 
 
 class HelpingFunctions:
@@ -262,7 +324,7 @@ class HelpingFunctions:
         :param filename:
         :return:
         """
-        with open(filename+'.csv', "a") as output:
+        with open(filename + '.csv', "a") as output:
             writer = csv.writer(output, lineterminator='\n')
             writer.writerow(text)
 
@@ -277,7 +339,7 @@ class HelpingFunctions:
         global compress_bpp
         global compress_psnr
         global time_decomp
-        global decompree_bpp
+        global decompress_bpp
         global decompress_psnr
         global count
         global dataset
@@ -289,6 +351,12 @@ class HelpingFunctions:
         global p_order
         global x_axis
         global y_axis
+        global reversible
+        global num_threads
+        global layers
+        global time_decomp_layer_list
+        global decompress_bpp_list
+        global decompress_psnr_list
 
         debug('main_parse | Input file: ' + input_file)
         # IF folder  ---------------------------------------------------------------
@@ -297,35 +365,87 @@ class HelpingFunctions:
                 debug('main_parse | Is folder: <' + input_file + '> read file: <' + file_of_folder + '>')
                 self.parse_folder(input_file + '/' + file_of_folder)
             if os.path.dirname(input_file) != "":
-                # TODO: print data for one dataset deleno poctem fotek v datasetu
+
                 if openjpeg:
                     self.write_to_csv(
                         [tile, nr_res, str(compress_bpp / count), str(compress_psnr / count), str(time_comp / count),
                          str(mode)], "opj_compress_" + str(dataset[1]))
-                    self.write_to_csv([tile, nr_res, str(decompree_bpp / count), str(decompress_psnr / count),
-                                       str(time_decomp / count), str(mode)], "opj_decompress_" + str(dataset[1]))
-                    print(orig_bpp / count, time_comp, compress_bpp, compress_psnr / count, time_decomp, decompree_bpp,
-                          decompress_psnr)
-                    print(count)
+                    if not layers:
+                        self.write_to_csv([tile, nr_res, str(decompress_bpp / count), str(decompress_psnr / count),
+                                           str(time_decomp / count), str(mode)], "opj_decompress_" + str(dataset[1]))
+                    else:
+                        time_decomp_layer = dict(time_decomp_layer_list)
+                        counter = collections.Counter()
+                        for d in time_decomp_layer:
+                            counter.update(d)
+                        time_decomp_layer_dict = dict(counter)
+
+                        decompress_bpp_layer = dict(decompress_bpp_list)
+                        counter = collections.Counter()
+                        for d in decompress_bpp_layer:
+                            counter.update(d)
+                        decompress_bpp_layer_dict = dict(counter)
+
+                        decompress_psnr_layer = dict(decompress_psnr_list)
+                        counter = collections.Counter()
+                        for d in decompress_psnr_layer:
+                            counter.update(d)
+                        decompress_psnr_layer_dict = dict(counter)
+
+                        for key in time_decomp_layer_dict.keys():
+                            time_decomp = time_decomp_layer_dict.get(key)
+                            decompress_bpp = decompress_bpp_layer_dict.get(key)
+                            decompress_psnr = decompress_psnr_layer_dict.get(key)
+                            self.write_to_csv([tile, nr_res, str(decompress_bpp / count), str(decompress_psnr / count),
+                                               str(time_decomp / count), str(mode)],
+                                              "opj_decompress_" + str(dataset[1]) + str(key))
+                # print(orig_bpp / count, time_comp, compress_bpp, compress_psnr / count, time_decomp, decompree_bpp,
+                    # decompress_psnr)
+                    # print(count)
                 if kakadu:
                     self.write_to_csv(
                         [tile, nr_res, str(compress_bpp / count), str(compress_psnr / count), str(time_comp / count),
                          str(mode)], "kkd_compress_" + str(dataset[1]))
-                    self.write_to_csv([tile, nr_res, str(decompree_bpp / count), str(decompress_psnr / count),
-                                       str(time_decomp / count), str(mode)], "kkd_decompress_" + str(dataset[1]))
-                    print(orig_bpp / count, time_comp, compress_bpp, compress_psnr / count, time_decomp, decompree_bpp,
-                          decompress_psnr)
-                    print(count)
+                    if not layers:
+                        self.write_to_csv([tile, nr_res, str(decompress_bpp / count), str(decompress_psnr / count),
+                                           str(time_decomp / count), str(mode)], "kkd_decompress_" + str(dataset[1]))
+                    else:
+                        time_decomp_layer = dict(time_decomp_layer_list)
+                        counter = collections.Counter()
+                        for d in time_decomp_layer:
+                            counter.update(d)
+                        time_decomp_layer_dict = dict(counter)
+
+                        decompress_bpp_layer = dict(decompress_bpp_list)
+                        counter = collections.Counter()
+                        for d in decompress_bpp_layer:
+                            counter.update(d)
+                        decompress_bpp_layer_dict = dict(counter)
+
+                        decompress_psnr_layer = dict(decompress_psnr_list)
+                        counter = collections.Counter()
+                        for d in decompress_psnr_layer:
+                            counter.update(d)
+                        decompress_psnr_layer_dict = dict(counter)
+
+                        for key in time_decomp_layer_dict.keys():
+                            time_decomp = time_decomp_layer_dict.get(key)
+                            decompress_bpp = decompress_bpp_layer_dict.get(key)
+                            decompress_psnr = decompress_psnr_layer_dict.get(key)
+                            self.write_to_csv([tile, nr_res, str(decompress_bpp / count), str(decompress_psnr / count),
+                                               str(time_decomp / count), str(mode)],
+                                              "kkd_decompress_" + str(dataset[1]) + str(key))
+                # print(orig_bpp / count, time_comp, compress_bpp, compress_psnr / count, time_decomp, decompree_bpp,
+                            # decompress_psnr)
+                            # print(count)
                 orig_bpp = 0.0000
                 time_comp = 0.0000
                 compress_bpp = 0.0000
                 compress_psnr = 0.0000
                 time_decomp = 0.0000
-                decompree_bpp = 0.0000
+                decompress_bpp = 0.0000
                 decompress_psnr = 0.0000
                 count = 0
-
-
 
         # IF valid image -------------------------------------------------------------------
 
@@ -335,33 +455,42 @@ class HelpingFunctions:
             count += 1
             dataset = os.path.dirname(input_file).split("/")
 
-
             # print(name, dirn)
-            # TODO: globalni citace, spoustet v cyklu
+
             name, dirn, ref = self.parse_file(input_file)
             path = self.prepare_folder(dirn, name, True)
             orig_bpp += self.count_bpp(input_file)
 
             if openjpeg:
-                time_comp += opj.compress(input_file, path, q_layers, nr_res, tile, codeblock, p_order, x_axis, y_axis, mode)
+                time_comp += opj.compress(input_file, path, q_layers, nr_res, tile, codeblock, p_order, x_axis, y_axis,
+                                          mode)
                 print("compressed")
                 compress_bpp += self.count_bpp(path)
                 compress_psnr += self.postprocess_image(path, ref)
                 path2 = self.prepare_folder(dirn, name, False)
-                time_decomp += opj.decompress(path, path2)
-                decompree_bpp += self.count_bpp(path2)
-                decompress_psnr += self.postprocess_image(path2, ref)
+                if not layers:
+                    time_decomp += opj.decompress(path, path2, layers, ref)
+                    decompress_bpp += self.count_bpp(path2)
+                    decompress_psnr += self.postprocess_image(path2, ref)
+                else:
+                    time_decomp_layer_list, decompress_bpp_list, decompress_psnr_list = opj.decompress(path, path2, layers, ref)
                 self.delete_image(path, path2, dirn)
 
             if kakadu:
-                time_comp += kkd.compress(input_file, path, q_layers, nr_res, tile, codeblock, p_order, x_axis, y_axis, mode, reversible)
+                time_comp += kkd.compress(input_file, path, q_layers, nr_res, tile, codeblock, p_order, x_axis, y_axis,
+                                          mode, reversible, num_threads)
                 print("compressed_kkd")
                 compress_bpp += self.count_bpp(path)
                 compress_psnr += self.postprocess_image(path, ref)
                 path2 = self.prepare_folder(dirn, name, False)
-                time_decomp += kkd.decompress(path, path2)
-                decompree_bpp += self.count_bpp(path2)
-                decompress_psnr += self.postprocess_image(path2, ref)
+                if not layers:
+                    time_decomp += kkd.decompress(path, path2, layers, ref)
+                    decompress_bpp += self.count_bpp(path2)
+                    decompress_psnr += self.postprocess_image(path2, ref)
+                else:
+                    time_decomp_layer_list, decompress_bpp_list, decompress_psnr_list = kkd.decompress(path, path2,
+                                                                                                       layers, ref)
+
                 self.delete_image(path, path2, dirn)
 
         # Some mess  -- ignore----------------------------------------------------------------
@@ -369,7 +498,8 @@ class HelpingFunctions:
             debug("File:" + input_file + " - ignored ")
             pass
 
-    def parse_file(self, input_file):
+    @staticmethod
+    def parse_file(input_file):
 
         base = os.path.basename(input_file)
         name = os.path.splitext(base)[0]
@@ -414,7 +544,8 @@ class HelpingFunctions:
         try:
             os.rmdir(dirn + '/decompressed')
         except IOError as e:
-            print("Failed  to remove '{0}'\nError (code {1}): '{2}'.".format(dirn + '/decompressed', e.errno, e.strerror))
+            print(
+                "Failed  to remove '{0}'\nError (code {1}): '{2}'.".format(dirn + '/decompressed', e.errno, e.strerror))
             sys.exit()
 
 
