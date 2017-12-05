@@ -16,9 +16,9 @@ import psnr
 from argparse import ArgumentParser
 import collections
 
-q_layers = 1
+q_layers = 12
 nr_res = 1
-tile_collection = [512, 1024, 2048, 4096, 8192]
+tile_collection = [512, 1024, 2048, 4096]
 tile = 512
 codeblock = 64
 p_order = "RPCL"
@@ -26,8 +26,8 @@ x_axis = 0
 y_axis = 0
 mode = 0
 reversible = 'yes'
-openjpeg = 1
-kakadu = 0
+openjpeg = 0
+kakadu = 1
 orig_bpp = 0.0000
 time_comp = 0.0000
 compress_bpp = 0.0000
@@ -165,13 +165,15 @@ class OpenJpeg:
             file.close()
 
             return float(time)
+        # TODO: pridat layers
         else:
             time_layer = []
             opj_decompress_psnr = []
             opj_decompress_bpp = []
-            for layer in range(1, 13, 1):
+            for layer in range(1, layers+1, 1):
+
                 with open('time_decompressed_OJ_B.txt', 'w') as f:
-                    run(["/usr/bin/time", "-f", "%U", "./opj_decompress", "-i", path, "-o", path2], stderr=f)
+                    run(["/usr/bin/time", "-f", "%U", "./opj_decompress", "-i", path, "-o", path2, "-l", str(layer)], stderr=f)
                 file = open('time_decompressed_OJ_B.txt', 'r')
                 file.readline()
                 time = file.readline().strip()
@@ -189,9 +191,9 @@ class OpenJpeg:
                     time = file.readline().strip()
                 file.close()
 
-                time_layer.append((float(time), layer))
-                opj_decompress_bpp.append((HelpingFunctions().count_bpp(path2), layer))
-                opj_decompress_psnr.append((HelpingFunctions().postprocess_image(path2, ref), layer))
+                time_layer.append((layer, float(time)))
+                opj_decompress_bpp.append((layer, HelpingFunctions().count_bpp(path2)))
+                opj_decompress_psnr.append((layer, HelpingFunctions().postprocess_image(path2, ref)))
             return time_layer, opj_decompress_bpp, opj_decompress_psnr
 
 
@@ -252,16 +254,17 @@ class Kakadu:
             kkd_decompress_psnr = []
             kkd_decompress_bpp = []
             for layer in range(1, 13, 1):
+                print(layer, "layer")
                 with open('time_decompressed_kkd.txt', 'w') as f:
-                    run(["/usr/bin/time", "-f", "%U", "./kdu_expand", "-i", path, "-o", path2, "-layers", layer],
-                        stderr=f)
+                    run(["/usr/bin/time", "-f", "%U", "./kdu_expand", "-i", path, "-o", path2, "-layers", str(layer)], stderr=f)
                 file = open('time_decompressed_kkd.txt', 'r')
                 time = file.readline().strip()
                 file.close()
 
-                time_layer.append((float(time), layer))
-                kkd_decompress_bpp.append((HelpingFunctions().count_bpp(path2), layer))
-                kkd_decompress_psnr.append((HelpingFunctions().postprocess_image(path2, ref), layer))
+                time_layer.append((layer, (float(time))))
+                kkd_decompress_bpp.append((layer, HelpingFunctions().count_bpp(path2)))
+                kkd_decompress_psnr.append((layer, HelpingFunctions().postprocess_image(path2, ref)))
+                HelpingFunctions().delete_image(path2)
             return time_layer, kkd_decompress_bpp, kkd_decompress_psnr
 
 
@@ -374,19 +377,23 @@ class HelpingFunctions:
                         self.write_to_csv([tile, nr_res, str(decompress_bpp / count), str(decompress_psnr / count),
                                            str(time_decomp / count), str(mode)], "opj_decompress_" + str(dataset[1]))
                     else:
-                        time_decomp_layer = dict(time_decomp_layer_list)
+                        print(time_decomp_layer_list)
+                        time_decomp_layer = [dict(time_decomp_layer_list)]
+                        print(time_decomp_layer)
+
                         counter = collections.Counter()
                         for d in time_decomp_layer:
                             counter.update(d)
                         time_decomp_layer_dict = dict(counter)
+                        print(time_decomp_layer_dict)
 
-                        decompress_bpp_layer = dict(decompress_bpp_list)
+                        decompress_bpp_layer = [dict(decompress_bpp_list)]
                         counter = collections.Counter()
                         for d in decompress_bpp_layer:
                             counter.update(d)
                         decompress_bpp_layer_dict = dict(counter)
 
-                        decompress_psnr_layer = dict(decompress_psnr_list)
+                        decompress_psnr_layer = [dict(decompress_psnr_list)]
                         counter = collections.Counter()
                         for d in decompress_psnr_layer:
                             counter.update(d)
@@ -398,7 +405,7 @@ class HelpingFunctions:
                             decompress_psnr = decompress_psnr_layer_dict.get(key)
                             self.write_to_csv([tile, nr_res, str(decompress_bpp / count), str(decompress_psnr / count),
                                                str(time_decomp / count), str(mode)],
-                                              "opj_decompress_" + str(dataset[1]) + str(key))
+                                              "opj_decompress_" + str(dataset[1]) + '_' + str(key))
                 # print(orig_bpp / count, time_comp, compress_bpp, compress_psnr / count, time_decomp, decompree_bpp,
                     # decompress_psnr)
                     # print(count)
@@ -410,31 +417,35 @@ class HelpingFunctions:
                         self.write_to_csv([tile, nr_res, str(decompress_bpp / count), str(decompress_psnr / count),
                                            str(time_decomp / count), str(mode)], "kkd_decompress_" + str(dataset[1]))
                     else:
-                        time_decomp_layer = dict(time_decomp_layer_list)
+                        time_decomp_layer = [dict(time_decomp_layer_list)]
                         counter = collections.Counter()
                         for d in time_decomp_layer:
                             counter.update(d)
                         time_decomp_layer_dict = dict(counter)
 
-                        decompress_bpp_layer = dict(decompress_bpp_list)
+                        decompress_bpp_layer = [dict(decompress_bpp_list)]
                         counter = collections.Counter()
                         for d in decompress_bpp_layer:
                             counter.update(d)
                         decompress_bpp_layer_dict = dict(counter)
 
-                        decompress_psnr_layer = dict(decompress_psnr_list)
+                        decompress_psnr_layer = [dict(decompress_psnr_list)]
                         counter = collections.Counter()
                         for d in decompress_psnr_layer:
                             counter.update(d)
                         decompress_psnr_layer_dict = dict(counter)
+                        print(decompress_bpp_layer_dict)
 
                         for key in time_decomp_layer_dict.keys():
+                            print(key)
                             time_decomp = time_decomp_layer_dict.get(key)
                             decompress_bpp = decompress_bpp_layer_dict.get(key)
+                            print(decompress_bpp)
                             decompress_psnr = decompress_psnr_layer_dict.get(key)
+                            print(decompress_psnr)
                             self.write_to_csv([tile, nr_res, str(decompress_bpp / count), str(decompress_psnr / count),
                                                str(time_decomp / count), str(mode)],
-                                              "kkd_decompress_" + str(dataset[1]) + str(key))
+                                              "kkd_decompress_" + str(dataset[1]) + '_' + str(key))
                 # print(orig_bpp / count, time_comp, compress_bpp, compress_psnr / count, time_decomp, decompree_bpp,
                             # decompress_psnr)
                             # print(count)
@@ -473,7 +484,12 @@ class HelpingFunctions:
                     decompress_bpp += self.count_bpp(path2)
                     decompress_psnr += self.postprocess_image(path2, ref)
                 else:
+
                     time_decomp_layer_list, decompress_bpp_list, decompress_psnr_list = opj.decompress(path, path2, layers, ref)
+                    print(time_decomp_layer_list, "\n")
+                    print(decompress_psnr_list, "\n")
+                    print(decompress_bpp_list, "\n")
+
                 self.delete_image(path, path2, dirn)
 
             if kakadu:
@@ -487,11 +503,17 @@ class HelpingFunctions:
                     time_decomp += kkd.decompress(path, path2, layers, ref)
                     decompress_bpp += self.count_bpp(path2)
                     decompress_psnr += self.postprocess_image(path2, ref)
+                    self.delete_image(path)
+                    self.delete_image(path2)
                 else:
                     time_decomp_layer_list, decompress_bpp_list, decompress_psnr_list = kkd.decompress(path, path2,
                                                                                                        layers, ref)
+                    print(time_decomp_layer_list, "\n")
+                    print(decompress_psnr_list, "\n")
+                    print(decompress_bpp_list, "\n")
+                    self.delete_image(path)
 
-                self.delete_image(path, path2, dirn)
+                self.delete_dir(dirn)
 
         # Some mess  -- ignore----------------------------------------------------------------
         else:
@@ -519,26 +541,12 @@ class HelpingFunctions:
         return float(psnr_count)
 
     @staticmethod
-    def delete_image(path, path2, dirn):
-
-        try:
-            os.remove(path)
-        except IOError as e:
-            print(
-                "Failed  to remove '{0}'\nError (code {1}): '{2}'.".format(path, e.errno, e.strerror))
-            sys.exit()
+    def delete_dir(dirn):
 
         try:
             os.rmdir(dirn + '/compressed')
         except IOError as e:
             print("Failed  to remove '{0}'\nError (code {1}): '{2}'.".format(dirn + '/compressed', e.errno, e.strerror))
-            sys.exit()
-
-        try:
-            os.remove(path2)
-        except IOError as e:
-            print(
-                "Failed  to remove '{0}'\nError (code {1}): '{2}'.".format(path2, e.errno, e.strerror))
             sys.exit()
 
         try:
@@ -548,6 +556,13 @@ class HelpingFunctions:
                 "Failed  to remove '{0}'\nError (code {1}): '{2}'.".format(dirn + '/decompressed', e.errno, e.strerror))
             sys.exit()
 
+    def delete_image(self, path):
+        try:
+            os.remove(path)
+        except IOError as e:
+            print(
+                "Failed  to remove '{0}'\nError (code {1}): '{2}'.".format(path, e.errno, e.strerror))
+            sys.exit()
 
 if __name__ == "__main__":
     main()
