@@ -16,7 +16,8 @@ import psnr
 from argparse import ArgumentParser
 import collections
 
-q_layers = 1
+
+q_layers = 12
 nr_res_k = 0
 nr_res_o = 0
 tile_collection = [512, 1024, 2048, 4096]
@@ -33,10 +34,10 @@ opj_mode = [0, 1, 2, 4, 3, 5, 6, 7]
 kkd_mode = [0, 'BYPASS', 'CAUSAL', 'RESET', 'RESTART', 'CAUSAL|BYPASS', 'BYPASS|RESET', 'BYPASS|RESTART', 'CAUSAL|RESET',
             'CAUSAL|RESTART', 'RESET|RESTART', 'BYPASS|CAUSAL|RESET', 'BYPASS|CAUSAL|RESTART', 'CAUSAL|RESET|RESTART',
             'BYPASS|RESET|RESTART', 'BYPASS|CAUSAL|RESET|RESTART']
-reversible = 'yes'
+reversible = 'no'
 openjpeg = 0
 kakadu = 0
-ireversible = 0
+ireversible = 1
 orig_bpp = 0.0000
 time_comp = 0.0000
 compress_bpp = 0.0000
@@ -51,8 +52,9 @@ layers = 0
 time_decomp_layer_list = []
 decompress_psnr_list = []
 decompress_bpp_list = []
-compression_ratio_kkd = 2.4
-compression_ration_opj = 2
+compression_ratio_kkd = 3
+compression_ration_opj = ", ".join([str(compression_ratio_kkd)]*int(q_layers))
+bpp_kkd = ""
 
 # results.append(['Velikost dlazdice', 'pocet urovni rozkladu', 'Bit/Pixel', 'PSNR-komprese', 'cas_komprese', 'Bypass'])
 # results2.append(['Velikost dlazdice', 'pocet urovni rozkladu', 'Bit/Pixel', 'PSNR-dekomprese', 'cas_dekomprese', 'Bypass'])
@@ -102,24 +104,28 @@ def main():
 
     func = HelpingFunctions()
 
-    """if openjpeg:
-        if q_layers > 1:
-            layers = 1
-        for item in opj_mode:
-            mode = item
-            for tile in tile_collection:
-                for nr_res in range(1, 11, 1):
-                    if int(tile) == 512 and int(mode) != 0 and int(nr_res) == 9:
-                        continue
-                    elif int(tile) == 512 and int(mode) != 0 and int(nr_res) == 10:
-                        continue
-                    elif int(tile) == 1024 and int(mode) != 0 and int(nr_res) == 10:
-                        continue
-                    else:
-                        func.parse_folder(args.input)"""
-    # if kakadu:
     if q_layers > 1:
         layers = 1
+        for kmode, omode in modes.items():
+            for tile in tile_collection:
+                for nr_res_k in range(0, 10, 1):
+
+                    kakadu = 1
+                    print("Kakadu: ", kakadu)
+                    func.parse_folder(args.input)
+                    kakadu = 0
+                    print("kakadu: ", kakadu)
+                    # sys.exit(5)
+
+                    nr_res_o = nr_res_k + 1
+                    openjpeg = 1
+                    print("opj: ", openjpeg)
+                    func.parse_folder(args.input)
+                    openjpeg = 0
+                    print("opj: ", openjpeg)
+
+                    # sys.exit(4)
+
     for kmode, omode in modes.items():
         for tile in tile_collection:
             for nr_res_k in range(0, 10, 1):
@@ -166,6 +172,8 @@ class OpenJpeg:
         :return:
         """
         global ireversible
+        global bpp_kkd
+        global q_layers
 
         if not ireversible:
             with open('time_compressed_OJ.txt', 'w') as f:
@@ -195,8 +203,12 @@ class OpenJpeg:
             return float(time)
 
         if ireversible:
+            print(bpp_kkd)
+            bpp_opj = ', '.join(bpp_kkd)
+            print(compression_ratio)
+            # sys.exit(3)
             with open('time_compressed_OJ.txt', 'w') as f:
-                run(["/usr/bin/time", "-f", "%U", "./opj_compress", "-i", input_file, "-o", path, "-r", str(compression_ratio),
+                run(["/usr/bin/time", "-f", "%U", "./opj_compress", "-i", input_file, "-o", path, "-r", bpp_opj,
                      "-n", str(number_of_resolution), "-t", str(tiles) + ',' + str(tiles), "-b",
                      str(codeblocks) + ',' + str(codeblock),
                      "-p", order, "-d", str(x) + ',' + str(y), "-M", str(omodes), "-I"], stderr=f)
@@ -248,7 +260,8 @@ class OpenJpeg:
             time_layer = []
             opj_decompress_psnr = []
             opj_decompress_bpp = []
-            for layer in range(1, layers + 1, 1):
+            for layer in range(1, q_layers + 1, 1):
+                print("layer_opj: ", layer)
 
                 with open('time_decompressed_OJ_B.txt', 'w') as f:
                     run(["/usr/bin/time", "-f", "%U", "./opj_decompress", "-i", path, "-o", path2, "-l", str(layer)],
@@ -299,6 +312,7 @@ class Kakadu:
         :return:
         """
         global ireversible
+        global bpp_kkd
 
         if not ireversible:
             with open('time_compressed_kkd_B.txt', 'w') as f:
@@ -327,6 +341,17 @@ class Kakadu:
             file = open('time_compressed_kkd_B.txt', 'r')
             time = file.readline().strip()
             file.close()
+
+            with open('bitrate_kkd.txt', 'r') as in_file:  # open file for reading text.
+                for line in in_file:  # Keep track of line numbers
+                    if 'Layer bit-rates' in line:
+                        bpp_kkd_str = in_file.readline().strip() + " " + in_file.readline().strip()
+                        bpp_kkd_list = bpp_kkd_str.split(", ")
+                        bpp_kkd = bpp_kkd_list[::-1]
+                        print("bitrate: ", bpp_kkd)
+                        # sys.exit(2)
+            in_file.close()
+
             return float(time)
 
     @staticmethod
@@ -340,6 +365,7 @@ class Kakadu:
         :param num_thread
         :return:
         """
+        global q_layers
 
         if not layer:
             with open('time_decompressed_kkd.txt', 'w') as f:
@@ -354,7 +380,7 @@ class Kakadu:
             time_layer = []
             kkd_decompress_psnr = []
             kkd_decompress_bpp = []
-            for layer in range(1, 13, 1):
+            for layer in range(1, q_layers+1, 1):
                 print(layer, " layer")
                 print(tile, " tile, ", nr_res_k, " nr_res_k")
                 with open('time_decompressed_kkd.txt', 'w') as f:
@@ -516,9 +542,13 @@ class HelpingFunctions:
                         decompress_psnr_layer_dict = dict(counter)
 
                         for key in time_decomp_layer_dict.keys():
+                            print(key)
                             time_decomp = time_decomp_layer_dict.get(key)
                             decompress_bpp = decompress_bpp_layer_dict.get(key)
+                            print(decompress_bpp)
                             decompress_psnr = decompress_psnr_layer_dict.get(key)
+                            print(decompress_psnr)
+                            print(time_decomp)
                             self.write_to_csv([tile, nr_res_o, str(decompress_bpp / count), str(decompress_psnr / count),
                                                str(time_decomp / count), str(omode)],
                                               "opj_decompress_" + str(dataset[1]) + '_' + str(key))
