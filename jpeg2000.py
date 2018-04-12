@@ -61,7 +61,7 @@ bpp_kkd = ""
 
 
 exit_failure = 1
-DEBUG = 1
+DEBUG = 0
 
 
 def debug(value):
@@ -111,18 +111,18 @@ def main():
                 for nr_res_k in range(0, 10, 1):
 
                     kakadu = 1
-                    print("Kakadu: ", kakadu)
+                    # debug("Kakadu: " + str(kakadu))
                     func.parse_folder(args.input)
                     kakadu = 0
-                    print("kakadu: ", kakadu)
+                    debug("kakadu: " + str(kakadu))
                     # sys.exit(5)
 
                     nr_res_o = nr_res_k + 1
                     openjpeg = 1
-                    print("opj: ", openjpeg)
+                    debug("opj: " + str(openjpeg))
                     func.parse_folder(args.input)
                     openjpeg = 0
-                    print("opj: ", openjpeg)
+                    debug("opj: " + str(openjpeg))
 
                     # sys.exit(4)
 
@@ -130,15 +130,15 @@ def main():
         for tile in tile_collection:
             for nr_res_k in range(0, 10, 1):
                 kakadu = 1
-                print("Kakadu: ", kakadu)
+                debug("Kakadu: " + str(kakadu))
                 func.parse_folder(args.input)
                 kakadu = 0
-                print("kakadu: ", kakadu)
+                debug("kakadu: " + str(kakadu))
                 nr_res_o = nr_res_k + 1
                 openjpeg = 1
-                print("opj: ", openjpeg)
+                debug("opj: " + str(openjpeg))
                 if int(tile) == 512 and (int(omode) == 1 or int(omode) == 4 or int(omode) == 6 or int(omode) == 5 or int(omode) == 7) and int(nr_res_o) == 9:
-                    print("vyskocim")
+                    debug("vyskocim")
                     openjpeg = 0
                     continue
                 elif int(tile) == 512 and (int(omode) == 1 or int(omode) == 4 or int(omode) == 6 or int(omode) == 5 or int(omode) == 7) and int(nr_res_o) == 10:
@@ -150,7 +150,7 @@ def main():
                 else:
                     func.parse_folder(args.input)
                 openjpeg = 0
-                print("opj: ", openjpeg)
+                debug("opj: " + str(openjpeg))
 
 
 class OpenJpeg:
@@ -203,9 +203,9 @@ class OpenJpeg:
             return float(time)
 
         if ireversible:
-            print(bpp_kkd)
+            debug(bpp_kkd)
             bpp_opj = ', '.join(bpp_kkd)
-            print(compression_ratio)
+            debug(compression_ratio)
             # sys.exit(3)
             with open('time_compressed_OJ.txt', 'w') as f:
                 run(["/usr/bin/time", "-f", "%U", "./opj_compress", "-i", input_file, "-o", path, "-r", bpp_opj,
@@ -261,7 +261,7 @@ class OpenJpeg:
             opj_decompress_psnr = []
             opj_decompress_bpp = []
             for layer in range(1, q_layers + 1, 1):
-                print("layer_opj: ", layer)
+                debug("layer_opj: " + str(layer))
 
                 with open('time_decompressed_OJ_B.txt', 'w') as f:
                     run(["/usr/bin/time", "-f", "%U", "./opj_decompress", "-i", path, "-o", path2, "-l", str(layer)],
@@ -348,7 +348,7 @@ class Kakadu:
                         bpp_kkd_str = in_file.readline().strip() + " " + in_file.readline().strip()
                         bpp_kkd_list = bpp_kkd_str.split(", ")
                         bpp_kkd = bpp_kkd_list[::-1]
-                        print("bitrate: ", bpp_kkd)
+                        debug(bpp_kkd)
                         # sys.exit(2)
             in_file.close()
 
@@ -381,8 +381,9 @@ class Kakadu:
             kkd_decompress_psnr = []
             kkd_decompress_bpp = []
             for layer in range(1, q_layers+1, 1):
-                print(layer, " layer")
-                print(tile, " tile, ", nr_res_k, " nr_res_k")
+                debug(str(layer) + " layer")
+                debug("tile: " + str(tile))
+                debug(str(nr_res_k) + " nr_res_k")
                 with open('time_decompressed_kkd.txt', 'w') as f:
                     run(["/usr/bin/time", "-f", "%U", "./kdu_expand", "-i", path, "-o", path2, "-layers", str(layer),
                          "-num_threads",
@@ -403,6 +404,7 @@ class HelpingFunctions:
     def prepare_folder(dirn, name, compress):
         """
 
+
         :param dirn:
         :param name:
         :param compress:
@@ -419,7 +421,7 @@ class HelpingFunctions:
                 print(
                     "Failed to create directory '{0}'\nError (code {1}): '{2}'.".format(dirn, e.errno, e.strerror))
                 sys.exit()
-            print(path)
+            debug(path)
             return path
         else:
             path = dirn + '/decompressed/' + name + '.tif'
@@ -431,7 +433,7 @@ class HelpingFunctions:
                 print(
                     "Failed to create directory '{0}'\nError (code {1}): '{2}'.".format(dirn, e.errno, e.strerror))
                 sys.exit()
-            print(path)
+            debug(path)
             return path
 
     @staticmethod
@@ -497,7 +499,7 @@ class HelpingFunctions:
         global ireversible
 
         debug('main_parse | Input file: ' + input_file)
-        print("jsem v parse folder")
+        debug("jsem v parse folder")
         # IF folder  ---------------------------------------------------------------
         if os.path.isdir(input_file):
             for file_of_folder in os.listdir(input_file):
@@ -519,15 +521,15 @@ class HelpingFunctions:
                         self.write_to_csv([tile, nr_res_o, str(decompress_bpp / count), str(decompress_psnr / count),
                                            str(time_decomp / count), str(omode)], "opj_decompress_" + str(dataset[1]))
                     elif layers:
-                        print(time_decomp_layer_list)
+                        debug(time_decomp_layer_list)
                         time_decomp_layer = [dict(time_decomp_layer_list)]
-                        print(time_decomp_layer)
+                        debug(time_decomp_layer)
 
                         counter = collections.Counter()
                         for d in time_decomp_layer:
                             counter.update(d)
                         time_decomp_layer_dict = dict(counter)
-                        print(time_decomp_layer_dict)
+                        debug(time_decomp_layer_dict)
 
                         decompress_bpp_layer = [dict(decompress_bpp_list)]
                         counter = collections.Counter()
@@ -542,19 +544,19 @@ class HelpingFunctions:
                         decompress_psnr_layer_dict = dict(counter)
 
                         for key in time_decomp_layer_dict.keys():
-                            print(key)
+                            debug(key)
                             time_decomp = time_decomp_layer_dict.get(key)
                             decompress_bpp = decompress_bpp_layer_dict.get(key)
-                            print(decompress_bpp)
+                            debug(decompress_bpp)
                             decompress_psnr = decompress_psnr_layer_dict.get(key)
-                            print(decompress_psnr)
-                            print(time_decomp)
+                            debug(decompress_psnr)
+                            debug(time_decomp)
                             self.write_to_csv([tile, nr_res_o, str(decompress_bpp / count), str(decompress_psnr / count),
                                                str(time_decomp / count), str(omode)],
                                               "opj_decompress_" + str(dataset[1]) + '_' + str(key))
-                            # print(orig_bpp / count, time_comp, compress_bpp, compress_psnr / count, time_decomp, decompree_bpp,
+                            # debug(orig_bpp / count, time_comp, compress_bpp, compress_psnr / count, time_decomp, decompree_bpp,
                             # decompress_psnr)
-                            # print(count)
+                            # debug(count)
                 if kakadu:
                     if ireversible:
                         self.write_to_csv(
@@ -586,21 +588,21 @@ class HelpingFunctions:
                         for d in decompress_psnr_layer:
                             counter.update(d)
                         decompress_psnr_layer_dict = dict(counter)
-                        print(decompress_bpp_layer_dict)
+                        debug(decompress_bpp_layer_dict)
 
                         for key in time_decomp_layer_dict.keys():
-                            print(key)
+                            debug(key)
                             time_decomp = time_decomp_layer_dict.get(key)
                             decompress_bpp = decompress_bpp_layer_dict.get(key)
-                            print(decompress_bpp)
+                            debug(decompress_bpp)
                             decompress_psnr = decompress_psnr_layer_dict.get(key)
-                            print(decompress_psnr)
+                            debug(decompress_psnr)
                             self.write_to_csv([tile, nr_res_k, str(decompress_bpp / count), str(decompress_psnr / count),
                                                str(time_decomp / count), str(kmode)],
                                               "kkd_decompress_" + str(dataset[1]) + '_' + str(key))
-                            # print(orig_bpp / count, time_comp, compress_bpp, compress_psnr / count, time_decomp, decompree_bpp,
+                            # debug(orig_bpp / count, time_comp, compress_bpp, compress_psnr / count, time_decomp, decompree_bpp,
                             # decompress_psnr)
-                            # print(count)
+                            # debug(count)
 
                 orig_bpp = 0.0000
                 time_comp = 0.0000
@@ -619,23 +621,23 @@ class HelpingFunctions:
             count += 1
             dataset = os.path.dirname(input_file).split("/")
 
-            # print(name, dirn)
+            # debug(name + ", " + dirn)
 
             name, dirn, ref = self.parse_file(input_file)
             path = self.prepare_folder(dirn, name, True)
             orig_bpp += self.count_bpp(input_file)
 
             if openjpeg:
-                print("compressed_opj_start: ", nr_res_o, tile, q_layers, omode)
+                debug("compressed_opj_start: " + ", " + str(nr_res_k) + ", " + str(tile) + ", " + str(q_layers) + ", " + str(omode))
                 time_comp += opj.compress(input_file, path, q_layers, nr_res_o, tile, codeblock, p_order, x_axis, y_axis,
                                           omode, compression_ration_opj)
-                print("compressed_opj: ", nr_res_o, tile, q_layers, omode)
+                debug("compressed_opj: " + ", " + str(nr_res_k) + ", " + str(tile) + ", " + str(q_layers) + ", " + str(omode))
                 compress_bpp += self.count_bpp(path)
                 compress_psnr += self.postprocess_image(path, ref)
                 path2 = self.prepare_folder(dirn, name, False)
                 if not layers:
                     time_decomp += opj.decompress(path, path2, layers, ref)
-                    print("deompress_opj")
+                    debug("deompress_opj")
                     decompress_bpp += self.count_bpp(path2)
                     decompress_psnr += self.postprocess_image(path2, ref)
                     self.delete_image(path)
@@ -644,24 +646,27 @@ class HelpingFunctions:
 
                     time_decomp_layer_list, decompress_bpp_list, decompress_psnr_list = opj.decompress(path, path2,
                                                                                                        layers, ref)
-                    print(time_decomp_layer_list, "\n")
-                    print(decompress_psnr_list, "\n")
-                    print(decompress_bpp_list, "\n")
+                    debug(time_decomp_layer_list)
+                    debug("\n")
+                    debug(decompress_psnr_list)
+                    debug("\n")
+                    debug(decompress_bpp_list)
+                    debug("\n")
                     self.delete_image(path)
 
                 self.delete_dir(dirn)
 
             if kakadu:
-                print("compressed_kkd_start: ", nr_res_k, tile, q_layers, kmode)
+                debug('compressed_kkd_start: ' + ", " + str(nr_res_k) + ", " + str(tile) + ", " + str(q_layers) + ", " + str(kmode))
                 time_comp += kkd.compress(input_file, path, q_layers, nr_res_k, tile, codeblock, p_order, x_axis, y_axis,
                                           kmode, reversible, num_threads, compression_ratio_kkd)
-                print("compressed_kkd: ", nr_res_k, tile, q_layers, kmode)
+                debug("compressed_kkd: " + ", " + str(nr_res_k) + ", " + str(tile) + ", " + str(q_layers) + ", " + str(kmode))
                 compress_bpp += self.count_bpp(path)
                 compress_psnr += self.postprocess_image(path, ref)
                 path2 = self.prepare_folder(dirn, name, False)
                 if not layers:
                     time_decomp += kkd.decompress(path, path2, layers, ref, num_threads)
-                    print("decompress_kkd")
+                    debug("decompress_kkd")
                     decompress_bpp += self.count_bpp(path2)
                     decompress_psnr += self.postprocess_image(path2, ref)
                     self.delete_image(path)
@@ -669,9 +674,12 @@ class HelpingFunctions:
                 else:
                     time_decomp_layer_list, decompress_bpp_list, decompress_psnr_list = kkd.decompress(path, path2,
                                                                                                        layers, ref, num_threads)
-                    print(time_decomp_layer_list, "\n")
-                    print(decompress_psnr_list, "\n")
-                    print(decompress_bpp_list, "\n")
+                    debug(time_decomp_layer_list)
+                    debug("\n")
+                    debug(decompress_psnr_list)
+                    debug("\n")
+                    debug(decompress_bpp_list)
+                    debug("\n")
                     self.delete_image(path)
 
                 self.delete_dir(dirn)
